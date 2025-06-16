@@ -2,6 +2,8 @@
 
 CREATE DATABASE IF NOT EXISTS pizzas COLLATE utf8mb4_general_ci;
 
+DROP DATABASE IF EXISTS pizzas;
+
 USE pizzas;
 
 CREATE TABLE IF NOT EXISTS cliente (
