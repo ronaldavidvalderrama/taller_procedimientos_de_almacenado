@@ -4,15 +4,64 @@
 --Crea un procedimiento que inserte una nueva pizza en la tabla `pizza` 
 --junto con sus ingredientes en `pizza_ingrediente`.
 
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS ps_add_pizza_con_ingredientes;
 
 
+CREATE PROCEDURE ps_add_pizza_con_ingredientes(
+    IN p_nombre_pizza VARCHAR(100),
+    IN p_precio_pequeña DECIMAL(10,2),
+    IN p_precio_mediana DECIMAL(10,2),
+    IN p_precio_grande DECIMAL(10,2),
+    IN p_ingrediente1_id INT,
+    IN p_ingrediente1_cantidad INT,
+    IN p_ingrediente2_id INT,
+    IN p_ingrediente2_cantidad INT
+)
+BEGIN 
+    DECLARE v_producto_id INT;
+    DECLARE v_detalle_id INT;
 
+    -- Insertar la nueva pizza en producto
+    INSERT INTO producto(nombre, tipo_producto_id)
+    VALUES (p_nombre_pizza, 2);
 
+    SET v_producto_id = LAST_INSERT_ID();
+    -- Insertar las presentaciones de la pizza
+    INSERT INTO producto_presentacion(producto_id, presentacion_id, precio)
+    VALUES (v_producto_id, 1, p_precio_pequeña), -- Pequeña
+           (v_producto_id, 2, p_precio_mediana), -- Mediana
+           (v_producto_id, 3, p_precio_grande); -- Grande
+    
+    -- CREAR UN DETALLE TEMPORAL PARA INGREDIENTES
+    INSERT INTO detalle_pedido(pedido_id, cantidad)
+    VALUES (1, 1);
 
+    SET v_detalle_id = LAST_INSERT_ID();
 
+    -- 4. Insertar ingredientes como extras en ingredientes_extra
+    INSERT INTO ingredientes_extra (detalle_id, ingrediente_id, cantidad)
+    VALUES
+        (v_detalle_id, p_ingrediente1_id, p_ingrediente1_cantidad),
+        (v_detalle_id, p_ingrediente2_id, p_ingrediente2_cantidad);
+END $$
 
+DELIMITER ;
 
+-- Llamada ejemplo
+CALL ps_add_pizza_con_ingredientes(
+    'choripizza', -- Nombre de la pizza
+    150.00, -- Precio pequeña
+    200.00, -- Precio mediana
+    250.00, -- Precio grande
+    1,       -- ID del ingrediente 1 (ejemplo: Queso)
+    2,       -- Cantidad del ingrediente 1
+    2,       -- ID del ingrediente 2 (ejemplo: Tomate)
+    3        -- Cantidad del ingrediente 2
+);
 
+SELECT * FROM producto WHERE tipo_producto_id = 2; -- Verificar que la pizza se haya insertado correctamente
 
 
 --**`ps_actualizar_precio_pizza`**
@@ -25,8 +74,7 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS ps_actualizar_precio_pizza;
 
 CREATE PROCEDURE ps_actualizar_precio_pizza(
-    IN p_pizza_id INT,
-    IN p_presentacion_id INT,
+    IN p_nombre_pizza INT,
     IN p_nuevo_precio DECIMAL(10,2)
 )
 BEGIN
