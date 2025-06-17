@@ -173,3 +173,120 @@ CALL ps_generador_pedido(
 );
 
 SELECT * FROM pedido WHERE cliente_id = 1;
+
+--**`ps_cancelar_pedido`**
+--Recibe `p_pedido_id` y:
+
+-- Marca el pedido como “cancelado” (p. ej. actualiza un campo `estado`),
+-- Elimina todas sus líneas de detalle (`DELETE FROM detalle_pedido WHERE pedido_id = …`).
+-- Devuelve el número de líneas eliminadas.
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS ps_cancelar_pedido $$
+
+CREATE PROCEDURE ps_cancelar_pedido(
+    IN p_pedido_id INT
+)
+BEGIN
+    DECLARE filas_detalle INT;
+
+    -- eliminar ingredientes extra asociados al pedido
+    DELETE ie
+    FROM ingredientes_extra ie
+    JOIN detalle_pedido dp ON ie.detalle_id = dp.id
+    WHERE dp.pedido_id = p_pedido_id;
+
+    -- Eliminar los combos relacionados
+    DELETE dpc
+    FROM detalle_pedido_combo dpc
+    JOIN detalle_pedido dp ON dpc.detalle_id = dp.id
+    WHERE dp.pedido_id = p_pedido_id;
+
+    -- Eliminar productos relacionados
+    DELETE dpp
+    FROM detalle_pedido_producto dpp
+    JOIN detalle_pedido dp ON dpp.detalle_id = dp.id
+    WHERE dp.pedido_id = p_pedido_id;
+
+    -- Eliminar el detalle del pedido
+    DELETE FROM detalle_pedido
+    WHERE pedido_id = p_pedido_id;
+
+    -- Saber cuantas líneas de detalle se eliminaron
+    SET filas_detalle = ROW_COUNT();
+
+    -- Devolver el número de líneas eliminadas
+    SELECT filas_detalle AS 'Líneas eliminadas';
+
+END $$
+
+DELIMITER ;
+
+
+-- Llamada ejemplo
+CALL ps_cancelar_pedido(1);
+
+
+
+-- Verificar que el pedido se haya cancelado
+SELECT * FROM detalle_pedido ;
+
+
+
+--**`ps_facturar_pedido`**
+--Crea la factura asociada a un pedido dado (`p_pedido_id`). Debe:
+
+-- Calcular el total sumando precios de pizzas × cantidad,
+-- Insertar en `factura`.
+-- Devolver el `factura_id` generado.
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS ps_facturar_pedido $$
+
+CREATE PROCEDURE ps_facturar_pedido(
+    IN p_pedido_id INT
+)
+BEGIN
+    DECLARE v_total DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_cliente_id INT;
+    DECLARE v_factura_id INT;
+
+    -- Obtener el ID del cliente para la factura
+    SELECT cliente_id INTO v_cliente_id
+    FROM pedido
+    WHERE id = p_pedido_id;
+
+    -- Calcular total de productos (producto_presentacion)
+    SELECT SUM(pp.precio * dp.cantidad)
+    INTO v_total
+    FROM detalle_pedido dp
+    JOIN detalle_pedido_producto dpp ON dp.id = dpp.detalle_id
+    JOIN producto_presentacion pp ON dpp.producto_id = pp.producto_id
+    WHERE dp.pedido_id = p_pedido_id;
+
+    -- Agregar total de combos
+    SELECT v_total + IFNULL(SUM(c.precio * dp.cantidad), 0)
+    INTO v_total
+    FROM detalle_pedido dp
+    JOIN detalle_pedido_combo dpc ON dp.id = dpc.detalle_id
+    JOIN combo c ON dpc.combo_id = c.id
+    WHERE dp.pedido_id = p_pedido_id;
+
+    -- Insertar en la tabla factura
+    INSERT INTO factura (total, fecha, pedido_id, cliente_id)
+    VALUES (v_total, NOW(), p_pedido_id, v_cliente_id);
+
+    -- Obtener el ID de la factura generada
+    SET v_factura_id = LAST_INSERT_ID();
+
+    -- Devolver el ID de la factura
+    SELECT v_factura_id AS factura_id, v_total AS total_factura;
+END $$
+
+DELIMITER ;
+
+-- Llamada ejemplo
+CALL ps_facturar_pedido(1);
+CALL ps_facturar_pedido(2);
