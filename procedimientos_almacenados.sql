@@ -290,3 +290,93 @@ DELIMITER ;
 -- Llamada ejemplo
 CALL ps_facturar_pedido(1);
 CALL ps_facturar_pedido(2);
+
+
+
+--## Ejercicios de **Funciones**
+
+-- **`fc_calcular_subtotal_pizza`**
+--  - Parámetro: `p_pizza_id`
+--  - Retorna el precio base de la pizza más la suma de precios de sus ingredientes.
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS fc_calcular_subtotal_pizza $$
+
+CREATE FUNCTION fc_calcular_subtotal_pizza(
+    p_detalle_id INT
+)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE v_precio_base DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_precio_ingredientes DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_producto_id INT;
+    DECLARE v_presentacion_id INT;
+
+    -- Obtener el producto asociado al detalle
+    SELECT producto_id INTO v_producto_id
+    FROM detalle_pedido_producto
+    WHERE detalle_id = p_detalle_id
+    LIMIT 1;
+
+    -- Suponiendo que se quiere la presentación "Mediana" (id = 2)
+    SET v_presentacion_id = 2;
+
+    -- Obtener el precio base de la pizza según su presentación
+    SELECT precio INTO v_precio_base
+    FROM producto_presentacion
+    WHERE producto_id = v_producto_id
+      AND presentacion_id = v_presentacion_id;
+
+    -- Calcular el precio total de los ingredientes extra
+    SELECT IFNULL(SUM(ie.cantidad * i.precio), 0)
+    INTO v_precio_ingredientes
+    FROM ingredientes_extra ie
+    JOIN ingrediente i ON ie.ingrediente_id = i.id
+    WHERE ie.detalle_id = p_detalle_id;
+
+    -- Retornar la suma del precio base + ingredientes extra
+    RETURN v_precio_base + v_precio_ingredientes;
+END $$
+
+DELIMITER ;
+
+-- Llamada ejemplo
+SELECT fc_calcular_subtotal_pizza(3) AS subtotal_pizza;
+
+SELECT *FROM detalle_pedido_producto;
+
+
+--**fc_descuento_por_cantidad**- Parámetros: p_cantidad INT, p_precio_unitario DECIMAL
+-- Si p_cantidad ≥ 5 aplica 10% de descuento, sino 0%. Retorna el monto de descuento.
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS fc_descuento_por_cantidad $$
+
+CREATE FUNCTION fc_descuento_por_cantidad(
+    p_cantidad INT,
+    p_precio_unitario DECIMAL(10,2)
+)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE v_descuento DECIMAL(10,2);
+
+    IF p_cantidad >= 5 THEN
+        SET v_descuento = p_cantidad * p_precio_unitario * 0.10;
+    ELSE
+        SET v_descuento = 0;
+    END IF;
+
+    RETURN v_descuento;
+END $$
+
+DELIMITER ;
+
+-- Llamada ejemplo
+
+SELECT fc_descuento_por_cantidad(6, 100.00) AS descuento; 
