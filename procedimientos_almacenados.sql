@@ -380,3 +380,94 @@ DELIMITER ;
 -- Llamada ejemplo
 
 SELECT fc_descuento_por_cantidad(6, 100.00) AS descuento; 
+
+
+--**fc_precio_final_pedido**- Parámetros: p_pedido_id INT
+-- Usa calcular_subtotal_pizza y descuento_por_cantidad para devolver el total a pagar.
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS fc_precio_final_pedido $$
+CREATE FUNCTION fc_precio_final_pedido(
+    p_pedido_id INT
+)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE v_detalle_id INT;
+    DECLARE v_cantidad INT;
+    DECLARE v_precio_unitario DECIMAL(10,2);
+    DECLARE v_subtotal DECIMAL(10,2);
+    DECLARE v_descuento DECIMAL(10,2);
+    DECLARE v_total DECIMAL(10,2) DEFAULT 0;
+
+    DECLARE fin INT DEFAULT 0;
+
+    -- Cursor para recorrer los detalles de pizzas del pedido
+    DECLARE c CURSOR FOR
+        SELECT dp.id, dp.cantidad, pp.precio
+        FROM detalle_pedido dp
+        JOIN detalle_pedido_producto dpp ON dp.id = dpp.detalle_id
+        JOIN producto_presentacion pp ON dpp.producto_id = pp.producto_id
+        WHERE dp.pedido_id = p_pedido_id;
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET fin = 1;
+
+    OPEN c;
+
+    bucle: LOOP
+        FETCH c INTO v_detalle_id, v_cantidad, v_precio_unitario;
+        IF fin = 1 THEN
+            LEAVE bucle;
+        END IF;
+
+        -- Calcular subtotal de esa pizza
+        SET v_subtotal = fc_calcular_subtotal_pizza(v_detalle_id);
+        
+        -- Calcular descuento si aplica
+        SET v_descuento = fc_descuento_por_cantidad(v_cantidad, v_precio_unitario);
+
+        -- Acumular el total
+        SET v_total = v_total + (v_subtotal - v_descuento);
+    END LOOP;
+
+    CLOSE c;
+
+    RETURN v_total;
+END $$
+DELIMITER ;
+
+-- Llamada ejemplo
+
+SELECT fc_precio_final_pedido(1) AS total_pedido;
+
+
+--**fc_obtener_stock_ingrediente**- Parámetro: p_ingrediente_id INT
+-- Retorna el stock disponible del ingrediente.
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS fc_obtener_stock_ingrediente $$
+
+CREATE FUNCTION fc_obtener_stock_ingrediente(
+    p_ingrediente_id INT
+)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE v_stock INT;
+
+    SELECT stock
+    INTO v_stock
+    FROM ingrediente
+    WHERE id = p_ingrediente_id;
+
+    RETURN v_stock;
+END $$
+
+DELIMITER ;
+
+-- Llamada ejemplo
+SELECT fc_obtener_stock_ingrediente(1) AS stock_queso;
